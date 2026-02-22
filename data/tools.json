@@ -1,0 +1,6 @@
+{
+  "tools": [
+    {"id": "1", "name": "JSON Formatter", "category": "Developer", "url": "/tools/json-formatter"},
+    {"id": "2", "name": "Color Picker", "category": "Design", "url": "/tools/color-picker"}
+  ]
+}
