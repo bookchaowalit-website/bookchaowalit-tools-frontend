@@ -1,197 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-function Shell({
-  title,
-  subtitle,
-  badge = "Portfolio demo · local-only",
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  badge?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-black dark:text-zinc-100">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <header className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">{badge}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{title}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">{subtitle}</p>
-        </header>
-        {children}
-        <footer className="mt-10 border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800">
-          Honest demo: no multi-tenant backend. State (if any) stays in this browser.
-        </footer>
-      </div>
-    </div>
-  );
-}
-
-function Button({
-  children,
-  onClick,
-  variant = "primary",
-  disabled,
-  type = "button",
-  className = "",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-  disabled?: boolean;
-  type?: "button" | "submit";
-  className?: string;
-}) {
-  const base =
-    "inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-50 " +
-    className;
-  const styles =
-    variant === "primary"
-      ? "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-      : variant === "secondary"
-        ? "bg-white text-zinc-900 ring-1 ring-zinc-200 hover:bg-zinc-100 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700"
-        : variant === "danger"
-          ? "bg-red-600 text-white hover:bg-red-500"
-          : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900";
-  return (
-    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${styles}`}>
-      {children}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950";
+type Tool = { id: string; title: string; body: string; status: string; createdAt: number };
+type Draft = Pick<Tool, "title" | "body" | "status">;
+const STORE_KEY = "tools-dir-v2";
+const SEED: Tool[] = [
+  { id: "1", title: "JSON Formatter", body: "Pretty / minify", status: "Live", createdAt: Date.now() - 172800000 },
+  { id: "2", title: "Color Picker", body: "Sample a screen color", status: "Live", createdAt: Date.now() - 86400000 },
+];
 
 function useLocalStorage<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(initial);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw != null) setValue(JSON.parse(raw) as T);
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
-  }, [key]);
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value, ready]);
+  const [value, setValue] = useState<T>(initial); const [ready, setReady] = useState(false);
+  useEffect(() => { try { const raw = window.localStorage.getItem(key); if (raw) setValue(JSON.parse(raw) as T); } catch { /* fallback */ } setReady(true); }, [key]);
+  useEffect(() => { if (ready) window.localStorage.setItem(key, JSON.stringify(value)); }, [key, value, ready]);
   return [value, setValue] as const;
 }
 
-function uid() {
-  return crypto.randomUUID();
-}
-
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-
-type Item = { id: string; title: string; body: string; status: string; createdAt: number };
-
-const SEED: Item[] = [{"title": "JSON Converter", "body": "Pretty / minify", "status": "Live"}].map((x: any, i: number) => ({
-  id: String(x.id ?? i + 1),
-  title: x.title,
-  body: x.body,
-  status: x.status,
-  createdAt: x.createdAt ?? Date.now() - i * 86400000,
-}));
-
-const FIELDS = [{"key": "title", "label": "Title", "type": "text"}, {"key": "body", "label": "Details", "type": "textarea"}, {"key": "status", "label": "Status", "type": "select", "options": ["Draft", "Active", "Done"]}] as { key: "title" | "body" | "status"; label: string; type: string; options?: string[] }[];
-
 export default function Home() {
-  const [items, setItems] = useLocalStorage<Item[]>("tools-dir-v1", SEED);
+  const [items, setItems] = useLocalStorage<Tool[]>(STORE_KEY, SEED);
   const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState<Record<string, string>>(() =>
-    Object.fromEntries(FIELDS.map((f) => [f.key, f.options?.[0] ?? ""]))
-  );
+  const [draft, setDraft] = useState<Draft>({ title: "", body: "", status: "Draft" });
+  const filtered = useMemo(() => items.filter((item) => `${item.title} ${item.body} ${item.status}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
+  const add = () => { if (!draft.title.trim()) return; setItems((current) => [{ id: crypto.randomUUID(), ...draft, title: draft.title.trim(), createdAt: Date.now() }, ...current]); setDraft({ title: "", body: "", status: "Draft" }); };
 
-  const filtered = items.filter((it) =>
-    (it.title + it.body + it.status).toLowerCase().includes(query.toLowerCase())
-  );
-
-  const add = () => {
-    if (!String(draft.title || "").trim()) return;
-    setItems((prev) => [
-      {
-        id: uid(),
-        title: draft.title || "",
-        body: draft.body || "",
-        status: draft.status || "",
-        createdAt: Date.now(),
-      },
-      ...prev,
-    ]);
-    setDraft(Object.fromEntries(FIELDS.map((f) => [f.key, f.options?.[0] ?? ""])));
-  };
-
-  return (
-    <Shell title="Tools Directory" subtitle="Internal tools index.">
-      <div className="mb-4 flex flex-wrap gap-2">
-        <input className={`${inputClass} max-w-sm`} placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <span className="self-center text-sm text-zinc-500">{filtered.length} items</span>
-      </div>
-      <div className="mb-6 grid gap-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950 md:grid-cols-2">
-        {FIELDS.map((f) => (
-          <label key={f.key} className="block space-y-1">
-            <span className="text-xs font-medium text-zinc-500">{f.label}</span>
-            {f.type === "textarea" ? (
-              <textarea
-                className={`${inputClass} min-h-[72px]`}
-                value={draft[f.key] || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-              />
-            ) : f.type === "select" ? (
-              <select
-                className={inputClass}
-                value={draft[f.key] || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-              >
-                {(f.options || []).map((o) => (
-                  <option key={o}>{o}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className={inputClass}
-                value={draft[f.key] || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, [f.key]: e.target.value }))}
-              />
-            )}
-          </label>
-        ))}
-        <div className="md:col-span-2">
-          <Button onClick={add}>Add</Button>
-        </div>
-      </div>
-      <ul className="space-y-2">
-        {filtered.map((it) => (
-          <li key={it.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="font-medium">{it.title}</div>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{it.body}</p>
-                <span className="mt-2 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-900">{it.status}</span>
-              </div>
-              <Button variant="ghost" onClick={() => setItems((prev) => prev.filter((x) => x.id !== it.id))}>
-                Delete
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Shell>
-  );
+  return <main className="tool-room">
+    <header className="tool-bar"><div className="tool-mark">B/08</div><div className="tool-name"><strong>UTILITY DRAWER</strong><span>SMALL INSTRUMENTS / LOCAL INDEX</span></div><div className="tool-state"><i /> {items.length} ENTRIES ON FILE</div></header>
+    <section className="tool-hero"><div><p className="tool-kicker">BOOKCHAOWALIT / WORKSHOP INDEX</p><h1>Keep the<br /><em>instruments close.</em></h1><p className="hero-copy">A shelf for the tiny utilities that make a working day less repetitive.</p></div><div className="drawer-label"><span>DRAWER</span><strong>02</strong><b>HANDLE<br />WITH CARE</b></div></section>
+    <section className="drawer-section" aria-label="Tools directory"><div className="drawer-top"><div><span className="tool-kicker">OPEN DRAWER / 001</span><h2>Available instruments</h2></div><label className="search-field"><span>Find a tool</span><input placeholder="Search the drawer" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
+      <div className="drawer-rule"><span>{filtered.length} visible</span><span>LOCAL INDEX</span></div>
+      <div className="tool-list">{filtered.length === 0 ? <div className="empty-drawer"><span>—</span><p>No instrument matches that search.</p></div> : filtered.map((item, index) => <article className="tool-line" key={item.id}><span className="tool-number">{String(index + 1).padStart(2, "0")}</span><div className="tool-copy"><strong>{item.title}</strong><span>{item.body}</span></div><span className="tool-status">{item.status}</span><button className="remove-tool" onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}>Remove</button></article>)}</div>
+    </section>
+    <section className="new-tool" aria-label="Add a tool"><div><span className="tool-kicker">NEW DRAWER CARD</span><h2>Label a useful thing.</h2><p>Entries stay in this browser and are not published as a working service.</p></div><div className="tool-form"><label><span>Title</span><input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. Markdown lint" /></label><label><span>Details</span><textarea value={draft.body} onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} placeholder="What does it help with?" rows={2} /></label><label><span>Status</span><select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}><option>Draft</option><option>Active</option><option>Done</option></select></label><button className="add-tool" onClick={add}>Put in drawer <b>↗</b></button></div></section>
+    <footer className="tool-footer"><span>BOOKCHAOWALIT / TOOLS DIRECTORY</span><span>LOCAL BROWSER STATE · DEMO-GRADE</span></footer>
+  </main>;
 }

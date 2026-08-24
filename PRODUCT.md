@@ -4,6 +4,12 @@
 **Generated:** 2026-08-11 (bulk Book Dev closeout)  
 **Status:** starter / portfolio boundary
 
+## Current product truth
+
+- A local internal-tools index with search and CRUD for tool notes.
+- Tool entries contain a title, details, status, and browser-local creation time.
+- Existing seed data and state are demo-grade; no remote tool launch or multi-tenant backend is claimed.
+
 ## Purpose
 
 Portfolio repository under Book Dev. This brief records ownership and the
